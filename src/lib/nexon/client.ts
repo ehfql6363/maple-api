@@ -28,6 +28,11 @@ export class NexonApiError extends Error {
   get invalidParameter() {
     return this.code === "OPENAPI00004";
   }
+
+  /** 호출 한도 초과 (HTTP 429, OPENAPI00007). 개발 키는 일일 한도라 그날은 계속 막힌다. */
+  get rateLimited() {
+    return this.status === 429 || this.code === "OPENAPI00007";
+  }
 }
 
 type Query = Record<string, string | number | undefined>;

@@ -40,6 +40,9 @@
   - 그래서 장비는 사냥 잠재 줄이 가장 적고 스타포스 합이 높은 프리셋 기준으로 본다.
   - 전투력은 현재 착용 프리셋 기준으로만 나오므로, 보스 프리셋을 끼고 있던 날만 기록한다(`combat_power` NULL 허용).
 - 일부 상위 랭커는 장비를 일부만 낀 레벨업용 캐릭터다.
+- 과거 날짜 조회가 된다(랭킹·캐릭터 모두 `date` 파라미터). 그래서 수집기는 `COLLECT_FROM`/`COLLECT_TO`로 백필할 수 있다.
+- 호출 한도: 2026-10 세션에서 개발 키로 하루 약 900~1,000회 호출한 뒤 429 `OPENAPI00007`("Please try again later")이 났고, 몇십 초 뒤에도 계속 막혔다. 일일 한도로 보인다(공식 문서는 이 환경에서 열리지 않아 미확인). 응답 헤더에 한도 정보는 없다.
+- 로컬 Postgres 16으로 마이그레이션(두 번 실행해도 안전)·수집·백필 전체 흐름을 실제 API로 확인했다. 15명 × 9일 백필에서 스냅샷 139건 중 전투력 기록 52건, 스펙업 2건.
 
 ## Next.js 16 주의 (`cacheComponents: true`)
 
@@ -52,13 +55,19 @@
 - 키는 `NEXON_API_KEY`(환경 변수 또는 git에서 제외된 `.env.local`), DB는 `DATABASE_URL`. 키를 커밋하거나 채팅·로그에 출력하지 않는다.
 - 2026-10 세션부터 Node(`fetch`)에서도 `open.api.nexon.com`이 열린다(이전 세션은 "Host not in allowlist"로 막혔다). 다시 막히면 curl로 받은 응답 JSON을 로직에 넣어 검증한다.
 - 실제 데이터 확인: `npm run build && npx next start -p 3123` 후 `curl localhost:3123/character/<이름>`, `/api/luck`에 POST.
+- 로컬 DB: 클라우드 컨테이너에 Postgres 16(`/usr/lib/postgresql/16/bin`)이 있다. `initdb`·`pg_ctl`은 `postgres` 사용자로 실행해야 한다.
+- 수집 테스트는 호출을 많이 쓴다. 개발 키 일일 한도를 다 쓰면 그날은 화면 확인도 막히니 `RANKING_PAGES=0`, 작은 `MAX_CHARACTERS`로 돌린다.
 - 검증 순서: `npm run lint && npm run typecheck && npm test && npm run build`
 
 ## 남은 일
 
 1. ~~`/character/[name]`, `/luck` 실제 데이터 확인~~ (2026-10 완료. 보스 프리셋 판정·사냥 프리셋 안내·없는 캐릭터·잘못된 키 처리 확인, 부위 순서 수정)
-2. Postgres 연결(Neon/Supabase), `npm run db:migrate`, GitHub Secrets(`NEXON_API_KEY`, `DATABASE_URL`) 등록 후 수집 시작. 데이터가 몇 주 쌓여야 추천 품질이 나온다.
+2. 수집 시작 — 코드 준비 완료(백필, 한도 도달 시 정상 종료, 개발 키 기준 기본값). 사용자가 할 일:
+   - Neon/Supabase에서 DB를 만들고 GitHub Secrets에 `NEXON_API_KEY`, `DATABASE_URL` 등록
+   - 이 브랜치를 `main`에 머지(스케줄 워크플로는 기본 브랜치에서만 돈다)
+   - 원하면 Run workflow로 백필
+5번(호출 한도)과 묶여 있다. 개발 키로는 하루 250명 정도라, 추천 품질을 높이려면 서비스 단계 키가 필요할 수 있다.
 3. 스타포스 확률표(`src/lib/luck/starforce.ts`, 개편 기준일 `STARFORCE_TABLE_SINCE`)를 공식 확률 공개 페이지와 대조. 15성 이상과 스타캐치 문구는 실제 기록으로 아직 검증하지 못했다(본인 키 이력은 14성까지, 스타캐치 `null`뿐).
 4. 큐브 등급 상승 공식 확률표를 넣어 운 백분위 계산
-5. 개발 키 호출 한도 확인 후 수집 규모(`RANKING_PAGES`, `MAX_CHARACTERS`) 조정. 캐릭터당 하루 3회 호출한다.
+5. 개발 키 호출 한도를 공식 문서로 확인(일일 약 1,000회로 추정)하고, 서비스 단계 키 신청 여부를 정한 뒤 수집 규모(`RANKING_PAGES`, `MAX_CHARACTERS`)를 조정. 캐릭터당 하루치에 3회 호출한다.
 6. 보스 프리셋을 거의 안 끼는 캐릭터는 전투력이 오래 갱신되지 않는다. 데이터가 쌓이면 장비 점수 기반 구간 분할을 검토한다.

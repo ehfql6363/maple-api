@@ -5,6 +5,18 @@ on:
     # 매일 03:17 KST (18:17 UTC). 전날 데이터가 확정된 뒤에 돈다.
     - cron: "17 18 * * *"
   workflow_dispatch:
+    inputs:
+      from:
+        description: "백필 시작일 (YYYY-MM-DD, 비우면 어제)"
+        required: false
+      to:
+        description: "백필 종료일 (YYYY-MM-DD, 비우면 어제)"
+        required: false
+
+# 수집이 겹치면 같은 날짜를 두 번 비교하게 되므로 한 번에 하나만 돈다.
+concurrency:
+  group: collect
+  cancel-in-progress: false
 
 jobs:
   collect:
@@ -24,5 +36,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           NEXON_API_KEY: ${{ secrets.NEXON_API_KEY }}
-          RANKING_PAGES: ${{ vars.RANKING_PAGES || '5' }}
-          MAX_CHARACTERS: ${{ vars.MAX_CHARACTERS || '500' }}
+          RANKING_PAGES: ${{ vars.RANKING_PAGES || '1' }}
+          MAX_CHARACTERS: ${{ vars.MAX_CHARACTERS || '250' }}
+          COLLECT_FROM: ${{ inputs.from }}
+          COLLECT_TO: ${{ inputs.to }}

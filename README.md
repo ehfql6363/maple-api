@@ -34,12 +34,22 @@ DB 없이도 캐릭터 현재 스펙 조회와 강화 운 분석은 동작합니
 
 ### 매일 자동 수집 설정
 
-GitHub 저장소 설정에서 다음을 추가하면 `.github/workflows/collect.yml`이 매일 03:17(KST)에 실행됩니다.
+1. Postgres를 준비합니다(Neon, Supabase 등 무료 플랜이면 충분). 연결 문자열을 복사합니다.
+2. GitHub 저장소 Settings → Secrets and variables → Actions에 추가합니다.
+   - Secrets: `NEXON_API_KEY`, `DATABASE_URL`
+   - Variables(선택): `RANKING_PAGES`(기본 1, 페이지당 200명), `MAX_CHARACTERS`(기본 250)
+3. 이 워크플로가 기본 브랜치(`main`)에 있어야 GitHub가 실행합니다. 이후 `.github/workflows/collect.yml`이 매일 03:17(KST)에 전날 데이터를 수집합니다. 스키마는 실행할 때마다 자동 적용됩니다.
 
-- Secrets: `NEXON_API_KEY`, `DATABASE_URL`
-- Variables(선택): `RANKING_PAGES`(기본 5, 페이지당 200명), `MAX_CHARACTERS`(기본 500)
+캐릭터 1명당 하루치에 3회 호출합니다. 기본값은 개발 단계 키(일일 약 1,000회로 추정)에 맞춘 값입니다. 서비스 단계 키를 받으면 값을 올리세요. 한도에 걸리면 수집기가 거기서 멈추고 다음 실행에서 이어서 수집합니다.
 
-캐릭터 1명당 하루 3회 호출합니다. 수집 규모는 API 키의 호출 한도에 맞춰 조정하세요.
+### 과거 데이터 백필
+
+넥슨 API는 과거 날짜도 조회할 수 있어서, 몇 주를 기다리지 않고 지난 데이터를 미리 채울 수 있습니다.
+
+- GitHub Actions → "일일 스펙 수집" → Run workflow에서 `from`/`to` 입력
+- 로컬: `COLLECT_FROM=2026-09-01 COLLECT_TO=2026-10-06 npm run collect`
+
+날짜 순서대로 수집해야 직전 스냅샷과 비교가 맞습니다. 그러니 백필은 매일 수집이 시작되기 전에 끝내세요. 한도로 중단되면 같은 범위로 다시 실행하면 이어집니다. 하루치에 `MAX_CHARACTERS × 3`회가 들기 때문에 개발 키로는 하루에 하루치 정도만 채울 수 있습니다.
 
 ## 검증이 필요한 부분
 

@@ -37,6 +37,9 @@ export async function POST(request: Request) {
   } catch (e) {
     if (e instanceof NexonApiError) {
       if (e.invalidKey) return Response.json({ error: "API 키가 올바르지 않습니다." }, { status: 401 });
+      if (e.rateLimited) {
+        return Response.json({ error: "이 API 키의 호출 한도를 초과했습니다. 기간을 줄이거나 내일 다시 시도해 주세요." }, { status: 429 });
+      }
       return Response.json({ error: e.message }, { status: 502 });
     }
     throw e;
