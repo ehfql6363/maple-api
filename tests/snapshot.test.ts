@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alreadyHas, diffSlots, type SlotState } from "@/lib/snapshot";
+import { alreadyHas, diffSlots, pickBossEquipment, type SlotState } from "@/lib/snapshot";
 
 const slot = (s: Partial<SlotState> & { slot: string; name: string }): SlotState => ({
   starforce: 0,
@@ -39,5 +39,55 @@ describe("alreadyHas", () => {
     expect(alreadyHas(mine, { slot: "장갑", kind: "starforce", to: "21성" })).toBe(true);
     expect(alreadyHas(mine, { slot: "장갑", kind: "potential", to: "레전드리" })).toBe(false);
     expect(alreadyHas(mine, { slot: "장갑", kind: "item", to: "아케인셰이드 나이트글러브" })).toBe(true);
+  });
+});
+
+describe("pickBossEquipment", () => {
+  const item = (slot: string, name: string, starforce: number, lines: string[] = []) => ({
+    item_equipment_part: slot,
+    item_equipment_slot: slot,
+    item_name: name,
+    item_icon: "",
+    starforce: String(starforce),
+    potential_option_grade: "레전드리",
+    additional_potential_option_grade: "유니크",
+    potential_option_1: lines[0] ?? "STR : +12%",
+    potential_option_2: lines[1] ?? null,
+    potential_option_3: lines[2] ?? null,
+    additional_potential_option_1: null,
+    additional_potential_option_2: null,
+    additional_potential_option_3: null,
+  });
+  // 실제 랭커 데이터에서 본 패턴: 사냥 프리셋은 드롭/메소 줄이 많고 스타포스가 낮다
+  const boss = [item("모자", "에테르넬 시프반다나", 22), item("장갑", "아케인셰이드 시프글러브", 22)];
+  const hunting = [
+    item("모자", "하이네스 어새신보닛", 17, ["아이템 드롭률 : +20%", "아이템 드롭률 : +20%"]),
+    item("장갑", "아케인셰이드 시프글러브", 22, ["메소 획득량 : +20%"]),
+  ];
+  const eq = (presetNo: number, current: typeof boss) => ({
+    date: null,
+    character_class: "나이트로드",
+    preset_no: presetNo,
+    item_equipment: current,
+    item_equipment_preset_1: hunting,
+    item_equipment_preset_2: boss,
+    item_equipment_preset_3: null,
+  });
+
+  it("사냥 프리셋을 끼고 있어도 보스 프리셋 장비를 고르고, 착용 중이 아님을 알린다", () => {
+    const r = pickBossEquipment(eq(1, hunting));
+    expect(r.presetNo).toBe(2);
+    expect(r.slots.map((s) => s.name)).toEqual(["에테르넬 시프반다나", "아케인셰이드 시프글러브"]);
+    expect(r.wearing).toBe(false);
+  });
+
+  it("보스 프리셋을 끼고 있으면 wearing = true", () => {
+    expect(pickBossEquipment(eq(2, boss)).wearing).toBe(true);
+  });
+
+  it("사냥 줄이 같으면 스타포스 합이 높은 프리셋", () => {
+    const low = [item("모자", "하이네스 어새신보닛", 17)];
+    const r = pickBossEquipment({ ...eq(1, low), item_equipment_preset_1: low, item_equipment_preset_2: boss });
+    expect(r.presetNo).toBe(2);
   });
 });

@@ -8,7 +8,8 @@ export interface UpgradeEvent {
   target: string;
   to: string;
   cpBefore: number;
-  cpAfter: number;
+  /** 변화 당일 사냥 프리셋을 끼고 있었으면 null */
+  cpAfter: number | null;
 }
 
 export interface Recommendation {
@@ -19,8 +20,8 @@ export interface Recommendation {
   users: number;
   /** 비슷한 구간에서 다음 스펙업으로 이걸 고른 비율 (0~1) */
   share: number;
-  /** 업그레이드 전후 스냅샷 사이 전투력 상승률 중앙값 (0.05 = +5%) */
-  medianGain: number;
+  /** 업그레이드 전후 보스 전투력 상승률 중앙값 (0.05 = +5%). 전후 전투력이 모두 있는 경우만 집계. */
+  medianGain: number | null;
 }
 
 /**
@@ -38,7 +39,7 @@ export function recommend(peerEvents: UpgradeEvent[], mine: SlotState[], limit =
     let g = groups.get(key);
     if (!g) groups.set(key, (g = { e, users: new Set(), gains: [] }));
     g.users.add(e.ocid);
-    if (e.cpBefore > 0) g.gains.push((e.cpAfter - e.cpBefore) / e.cpBefore);
+    if (e.cpBefore > 0 && e.cpAfter !== null) g.gains.push((e.cpAfter - e.cpBefore) / e.cpBefore);
   }
 
   return [...groups.values()]
@@ -48,9 +49,9 @@ export function recommend(peerEvents: UpgradeEvent[], mine: SlotState[], limit =
       target: e.target,
       users: users.size,
       share: users.size / totalUsers,
-      medianGain: median(gains),
+      medianGain: gains.length > 0 ? median(gains) : null,
     }))
-    .sort((a, b) => b.users - a.users || b.medianGain - a.medianGain)
+    .sort((a, b) => b.users - a.users || (b.medianGain ?? 0) - (a.medianGain ?? 0))
     .slice(0, limit);
 }
 

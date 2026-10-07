@@ -24,12 +24,24 @@ export interface ItemEquipment {
   starforce: string;
   potential_option_grade: string | null;
   additional_potential_option_grade: string | null;
+  potential_option_1: string | null;
+  potential_option_2: string | null;
+  potential_option_3: string | null;
+  additional_potential_option_1: string | null;
+  additional_potential_option_2: string | null;
+  additional_potential_option_3: string | null;
 }
 
 export interface CharacterItemEquipment {
   date: string | null;
   character_class: string | null;
+  /** 현재 착용 중인 프리셋 번호 */
+  preset_no: number | null;
+  /** 현재 착용 장비 (= preset_no 프리셋) */
   item_equipment: ItemEquipment[];
+  item_equipment_preset_1: ItemEquipment[] | null;
+  item_equipment_preset_2: ItemEquipment[] | null;
+  item_equipment_preset_3: ItemEquipment[] | null;
 }
 
 export interface OverallRankingEntry {

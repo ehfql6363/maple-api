@@ -1,8 +1,8 @@
 import { Suspense } from "react";
-import { DEFAULT_BAND, getDb, peerEvents, peerSlots } from "@/lib/db";
+import { DEFAULT_BAND, getDb, lastCombatPower, peerEvents, peerSlots } from "@/lib/db";
 import { NexonApiError, NexonClient } from "@/lib/nexon/client";
 import { compareSlots, recommend, type Recommendation, type SlotGap } from "@/lib/roadmap";
-import { combatPower, summarizeEquipment, type SlotState, type UpgradeKind } from "@/lib/snapshot";
+import { combatPower, pickBossEquipment, type SlotState, type UpgradeKind } from "@/lib/snapshot";
 
 const KIND_LABEL: Record<UpgradeKind, string> = {
   item: "장비 교체",
@@ -33,14 +33,18 @@ async function CharacterView({ params }: { params: PageProps<"/character/[name]"
       api.getCharacterStat(ocid),
       api.getItemEquipment(ocid),
     ]);
-    data = { basic, cp: combatPower(stat), slots: summarizeEquipment(equipment) };
+    data = { ocid, basic, currentCp: combatPower(stat), boss: pickBossEquipment(equipment) };
   } catch (e) {
     const msg = e instanceof NexonApiError && e.invalidParameter ? "캐릭터를 찾을 수 없습니다." : (e as Error).message;
     return <p className="notice">{msg}</p>;
   }
 
-  const { basic, cp, slots } = data;
+  const { ocid, basic, currentCp, boss } = data;
+  const slots = boss.slots;
   const sql = getDb();
+  // 사냥 프리셋을 끼고 있으면 현재 전투력이 낮게 나오므로, 수집된 마지막 보스 전투력을 쓴다.
+  const savedCp = !boss.wearing && sql ? await lastCombatPower(sql, ocid) : null;
+  const cp = boss.wearing ? currentCp : savedCp;
   let recs: Recommendation[] = [];
   let gaps: SlotGap[] = [];
   if (sql && cp) {
@@ -65,10 +69,20 @@ async function CharacterView({ params }: { params: PageProps<"/character/[name]"
           <div className="big">{cp ? `전투력 ${cp.toLocaleString("ko-KR")}` : "전투력 정보 없음"}</div>
         </div>
       </div>
+      {!boss.wearing && (
+        <p className="notice">
+          지금 사냥용 프리셋을 착용 중이라 아래 장비는 보스용으로 판단한 {boss.presetNo}번 프리셋 기준입니다.
+          {savedCp
+            ? " 전투력은 수집된 마지막 보스 세팅 전투력입니다."
+            : ` 현재 전투력(${currentCp?.toLocaleString("ko-KR") ?? "-"})은 사냥 세팅 기준이라 추천 계산에 쓰지 않습니다. 보스 프리셋을 착용한 뒤 다시 조회해 주세요.`}
+        </p>
+      )}
 
       <h2>다음 스텝 추천</h2>
       {!sql ? (
         <p className="notice">아직 수집 데이터베이스가 연결되지 않아 추천을 계산할 수 없습니다.</p>
+      ) : !cp ? (
+        <p className="notice">보스 세팅 전투력을 알 수 없어 비슷한 구간을 찾을 수 없습니다.</p>
       ) : recs.length === 0 ? (
         <p className="notice">
           같은 직업·전투력 ±{DEFAULT_BAND * 100}% 구간의 스펙업 데이터가 아직 부족합니다. 데이터가 쌓이면 표시됩니다.
@@ -94,7 +108,7 @@ async function CharacterView({ params }: { params: PageProps<"/character/[name]"
                   <td className="num">
                     {r.users}명 ({Math.round(r.share * 100)}%)
                   </td>
-                  <td className="num good">+{(r.medianGain * 100).toFixed(1)}%</td>
+                  <td className="num good">{r.medianGain === null ? "-" : `+${(r.medianGain * 100).toFixed(1)}%`}</td>
                 </tr>
               ))}
             </tbody>
@@ -132,7 +146,7 @@ async function CharacterView({ params }: { params: PageProps<"/character/[name]"
         </>
       )}
 
-      <h2>현재 장비</h2>
+      <h2>보스 세팅 장비{boss.presetNo ? ` (${boss.presetNo}번 프리셋)` : ""}</h2>
       <div className="grid">
         {slots.map((s) => (
           <SlotCard key={s.slot} s={s} />

@@ -8,13 +8,14 @@ CREATE TABLE IF NOT EXISTS characters (
 );
 CREATE INDEX IF NOT EXISTS characters_last_collected ON characters (last_collected NULLS FIRST);
 
--- 날짜별 스펙 스냅샷
+-- 날짜별 스펙 스냅샷. slots는 보스 프리셋 기준.
+-- combat_power는 그날 보스 프리셋을 끼고 있었을 때만 기록한다 (사냥 프리셋이면 NULL).
 CREATE TABLE IF NOT EXISTS snapshots (
   ocid          TEXT NOT NULL REFERENCES characters (ocid) ON DELETE CASCADE,
   date          DATE NOT NULL,
   class         TEXT NOT NULL,
   level         INT NOT NULL,
-  combat_power  BIGINT NOT NULL,
+  combat_power  BIGINT,
   slots         JSONB NOT NULL, -- SlotState[]
   PRIMARY KEY (ocid, date)
 );
@@ -32,8 +33,8 @@ CREATE TABLE IF NOT EXISTS upgrade_events (
   target     TEXT NOT NULL,
   from_value TEXT NOT NULL,
   to_value   TEXT NOT NULL,
-  cp_before  BIGINT NOT NULL,
-  cp_after   BIGINT NOT NULL,
+  cp_before  BIGINT, -- 변화 이전 마지막으로 확인된 보스 전투력
+  cp_after   BIGINT, -- 변화 당일 보스 전투력 (사냥 프리셋이었으면 NULL)
   UNIQUE (ocid, date_to, slot, kind)
 );
 CREATE INDEX IF NOT EXISTS upgrade_events_class_cp ON upgrade_events (class, cp_before);

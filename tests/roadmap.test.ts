@@ -49,3 +49,12 @@ describe("compareSlots", () => {
     expect(glove.behind).toBe(true);
   });
 });
+
+describe("recommend - 사냥 프리셋 날", () => {
+  it("변화 당일 전투력이 없으면(사냥 프리셋) 빈도에는 넣고 상승률에서는 뺀다", () => {
+    const recs = recommend([ev("a", { cpAfter: null }), ev("b", { cpAfter: 120 })], mine);
+    expect(recs[0].users).toBe(2);
+    expect(recs[0].medianGain).toBeCloseTo(0.2);
+    expect(recommend([ev("a", { cpAfter: null })], mine)[0].medianGain).toBeNull();
+  });
+});

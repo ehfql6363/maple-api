@@ -1,4 +1,4 @@
-import type { CharacterItemEquipment, CharacterStat } from "./nexon/types";
+import type { CharacterItemEquipment, CharacterStat, ItemEquipment } from "./nexon/types";
 
 /** 한 부위의 장비 상태 요약. 로드맵 비교에 필요한 것만 남긴다. */
 export interface SlotState {
@@ -26,14 +26,74 @@ export function gradeRank(grade: string | null): number {
   return grade ? GRADE_ORDER.indexOf(grade) : -1;
 }
 
-export function summarizeEquipment(eq: CharacterItemEquipment): SlotState[] {
-  return eq.item_equipment.map((item) => ({
+export function toSlots(items: ItemEquipment[]): SlotState[] {
+  return items.map((item) => ({
     slot: item.item_equipment_slot,
     name: item.item_name,
     starforce: Number(item.starforce) || 0,
     potential: item.potential_option_grade,
     additional: item.additional_potential_option_grade,
   }));
+}
+
+const HUNTING_OPTION = /아이템 드롭률|메소 획득량/;
+
+/** 잠재·에디셔널 옵션 중 사냥용(아이템 드롭률, 메소 획득량) 줄 수 */
+export function huntingLines(items: ItemEquipment[]): number {
+  let n = 0;
+  for (const i of items) {
+    for (const line of [
+      i.potential_option_1,
+      i.potential_option_2,
+      i.potential_option_3,
+      i.additional_potential_option_1,
+      i.additional_potential_option_2,
+      i.additional_potential_option_3,
+    ]) {
+      if (line && HUNTING_OPTION.test(line)) n++;
+    }
+  }
+  return n;
+}
+
+export interface BossEquipment {
+  presetNo: number | null;
+  slots: SlotState[];
+  /** 지금 이 프리셋을 끼고 있는지. 아니면 스탯 API의 전투력은 보스 세팅 기준이 아니다. */
+  wearing: boolean;
+}
+
+/**
+ * 프리셋 중 보스용 세팅을 고른다. API는 전투력을 현재 착용 프리셋 기준으로만 주기 때문에
+ * 사냥용 잠재 줄이 가장 적은 프리셋 → 스타포스 합이 높은 프리셋 → 현재 착용 프리셋 순으로 고른다.
+ */
+export function pickBossEquipment(eq: CharacterItemEquipment): BossEquipment {
+  const current = toSlots(eq.item_equipment);
+  const presets = ([1, 2, 3] as const)
+    .map((no) => ({ no, items: eq[`item_equipment_preset_${no}`] ?? [] }))
+    .filter((p) => p.items.length > 0)
+    .map((p) => ({
+      no: p.no,
+      slots: toSlots(p.items),
+      hunting: huntingLines(p.items),
+      starforce: p.items.reduce((sum, i) => sum + (Number(i.starforce) || 0), 0),
+    }));
+  if (presets.length === 0) return { presetNo: eq.preset_no, slots: current, wearing: true };
+
+  presets.sort(
+    (a, b) =>
+      a.hunting - b.hunting ||
+      b.starforce - a.starforce ||
+      Number(b.no === eq.preset_no) - Number(a.no === eq.preset_no),
+  );
+  const best = presets[0];
+  return { presetNo: best.no, slots: best.slots, wearing: sameSlots(current, best.slots) };
+}
+
+function sameSlots(a: SlotState[], b: SlotState[]): boolean {
+  const key = (xs: SlotState[]) =>
+    JSON.stringify([...xs].sort((x, y) => x.slot.localeCompare(y.slot)).map((x) => [x.slot, x.name, x.starforce, x.potential, x.additional]));
+  return key(a) === key(b);
 }
 
 export function combatPower(stat: CharacterStat): number | null {

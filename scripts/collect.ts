@@ -2,14 +2,23 @@
  * 매일 한 번 실행하는 수집기.
  * 1) 종합 랭킹에서 새 캐릭터를 찾아 등록하고
  * 2) 등록된 캐릭터의 어제자 스펙을 저장하면서, 이전 스냅샷과 비교해 스펙업을 기록한다.
+ *    장비는 보스 프리셋 기준이고, 전투력은 보스 프리셋을 끼고 있던 날만 기록한다.
  *
  * 환경변수: NEXON_API_KEY, DATABASE_URL
  *          RANKING_PAGES(기본 5, 페이지당 200명), MAX_CHARACTERS(기본 500), MIN_INTERVAL_MS(기본 200)
  */
 import { kstDate } from "../src/lib/date";
-import { charactersToCollect, getDb, knownNames, previousSnapshot, saveSnapshot, upsertCharacter } from "../src/lib/db";
+import {
+  charactersToCollect,
+  getDb,
+  knownNames,
+  lastCombatPower,
+  previousSnapshot,
+  saveSnapshot,
+  upsertCharacter,
+} from "../src/lib/db";
 import { NexonApiError, NexonClient } from "../src/lib/nexon/client";
-import { combatPower, diffSlots, summarizeEquipment } from "../src/lib/snapshot";
+import { combatPower, diffSlots, pickBossEquipment } from "../src/lib/snapshot";
 
 const rankingPages = Number(process.env.RANKING_PAGES ?? 5);
 const maxCharacters = Number(process.env.MAX_CHARACTERS ?? 500);
@@ -56,15 +65,18 @@ async function main() {
         api.getCharacterStat(ocid, date),
         api.getItemEquipment(ocid, date),
       ]);
-      const cp = combatPower(stat);
-      if (cp === null || !basic.character_class) continue;
-      const slots = summarizeEquipment(equipment);
-      const prev = await previousSnapshot(sql, ocid, date);
-      const changes = prev ? diffSlots(prev.slots, slots) : [];
+      if (!basic.character_class) continue;
+      const boss = pickBossEquipment(equipment);
+      const cp = boss.wearing ? combatPower(stat) : null;
+      const [prev, cpBefore] = await Promise.all([
+        previousSnapshot(sql, ocid, date),
+        lastCombatPower(sql, ocid, date),
+      ]);
+      const changes = prev ? diffSlots(prev.slots, boss.slots) : [];
       await saveSnapshot(
         sql,
-        { ocid, date, class: basic.character_class, level: basic.character_level, combatPower: cp, slots },
-        prev ? { dateFrom: prev.date, cpBefore: prev.combatPower, changes } : null,
+        { ocid, date, class: basic.character_class, level: basic.character_level, combatPower: cp, slots: boss.slots },
+        prev ? { dateFrom: prev.date, cpBefore, changes } : null,
       );
       saved++;
       upgrades += changes.length;

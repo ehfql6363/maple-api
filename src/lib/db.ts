@@ -40,17 +40,26 @@ export async function charactersToCollect(sql: postgres.Sql, date: string, limit
 }
 
 export async function previousSnapshot(sql: postgres.Sql, ocid: string, date: string) {
-  const [row] = await sql<{ date: Date; combat_power: string; slots: SlotState[] }[]>`
-    SELECT date, combat_power, slots FROM snapshots
+  const [row] = await sql<{ date: Date; slots: SlotState[] }[]>`
+    SELECT date, slots FROM snapshots
     WHERE ocid = ${ocid} AND date < ${date}
     ORDER BY date DESC LIMIT 1`;
-  return row ? { date: row.date.toISOString().slice(0, 10), combatPower: Number(row.combat_power), slots: row.slots } : null;
+  return row ? { date: row.date.toISOString().slice(0, 10), slots: row.slots } : null;
+}
+
+/** 마지막으로 확인된 보스 프리셋 전투력. before를 주면 그 날짜 이전(포함 안 함)만 본다. */
+export async function lastCombatPower(sql: postgres.Sql, ocid: string, before?: string): Promise<number | null> {
+  const [row] = await sql<{ combat_power: string }[]>`
+    SELECT combat_power FROM snapshots
+    WHERE ocid = ${ocid} AND combat_power IS NOT NULL ${before ? sql`AND date < ${before}` : sql``}
+    ORDER BY date DESC LIMIT 1`;
+  return row ? Number(row.combat_power) : null;
 }
 
 export async function saveSnapshot(
   sql: postgres.Sql,
-  s: { ocid: string; date: string; class: string; level: number; combatPower: number; slots: SlotState[] },
-  events: { dateFrom: string; cpBefore: number; changes: UpgradeChange[] } | null,
+  s: { ocid: string; date: string; class: string; level: number; combatPower: number | null; slots: SlotState[] },
+  events: { dateFrom: string; cpBefore: number | null; changes: UpgradeChange[] } | null,
 ) {
   await sql.begin(async (tx) => {
     await tx`
@@ -85,7 +94,7 @@ export async function peerEvents(
   { band = DEFAULT_BAND, days = 90 } = {},
 ): Promise<UpgradeEvent[]> {
   const rows = await sql<
-    { ocid: string; slot: string; kind: UpgradeEvent["kind"]; target: string; to_value: string; cp_before: string; cp_after: string }[]
+    { ocid: string; slot: string; kind: UpgradeEvent["kind"]; target: string; to_value: string; cp_before: string; cp_after: string | null }[]
   >`
     SELECT ocid, slot, kind, target, to_value, cp_before, cp_after FROM upgrade_events
     WHERE class = ${cls}
@@ -98,11 +107,11 @@ export async function peerEvents(
     target: r.target,
     to: r.to_value,
     cpBefore: Number(r.cp_before),
-    cpAfter: Number(r.cp_after),
+    cpAfter: r.cp_after === null ? null : Number(r.cp_after),
   }));
 }
 
-/** 같은 직업·비슷한 전투력 유저들의 최신 장비 (최근 14일 스냅샷 중 가장 최신) */
+/** 같은 직업·비슷한 보스 전투력 유저들의 최신 보스 프리셋 장비 (최근 30일 중 전투력이 기록된 가장 최신 스냅샷) */
 export async function peerSlots(
   sql: postgres.Sql,
   cls: string,
@@ -113,7 +122,7 @@ export async function peerSlots(
     SELECT DISTINCT ON (ocid) slots FROM snapshots
     WHERE class = ${cls}
       AND combat_power BETWEEN ${Math.floor(cp * (1 - band))} AND ${Math.ceil(cp * (1 + band))}
-      AND date >= CURRENT_DATE - 14
+      AND date >= CURRENT_DATE - 30
     ORDER BY ocid, date DESC`;
   return rows.map((r) => r.slots);
 }
