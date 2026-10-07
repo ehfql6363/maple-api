@@ -90,4 +90,11 @@ describe("pickBossEquipment", () => {
     const r = pickBossEquipment({ ...eq(1, low), item_equipment_preset_1: low, item_equipment_preset_2: boss });
     expect(r.presetNo).toBe(2);
   });
+
+  it("프리셋 장비를 현재 장비와 같은 부위 순서로 정렬한다", () => {
+    // 실제 응답: 프리셋은 현재와 다른 부위(귀고리·장갑)를 앞에 두고 내려온다
+    const preset = [item("귀고리", "마이스터 이어링", 22), item("장갑", "앱솔랩스 파이렛글러브", 20), item("모자", "하이네스 원더러햇", 18)];
+    const r = pickBossEquipment({ ...eq(1, hunting), item_equipment_preset_2: preset });
+    expect(r.slots.map((s) => s.slot)).toEqual(["모자", "귀고리", "장갑"]);
+  });
 });

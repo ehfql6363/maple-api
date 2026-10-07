@@ -26,14 +26,31 @@ export function gradeRank(grade: string | null): number {
   return grade ? GRADE_ORDER.indexOf(grade) : -1;
 }
 
+/**
+ * 현재 착용 장비(`item_equipment`)가 내려오는 부위 순서.
+ * 프리셋 장비는 현재와 다른 부위를 앞에 두는 순서로 내려와서 이 순서로 다시 정렬한다.
+ */
+const SLOT_ORDER = [
+  "모자", "얼굴장식", "눈장식", "귀고리", "상의", "하의", "신발", "장갑", "망토", "보조무기", "무기",
+  "반지1", "반지2", "반지3", "반지4", "펜던트", "훈장", "벨트", "어깨장식", "포켓 아이템", "기계 심장",
+  "뱃지", "엠블렘", "펜던트2", "예비 특수 반지",
+];
+
+function slotRank(slot: string): number {
+  const i = SLOT_ORDER.indexOf(slot);
+  return i === -1 ? SLOT_ORDER.length : i;
+}
+
 export function toSlots(items: ItemEquipment[]): SlotState[] {
-  return items.map((item) => ({
-    slot: item.item_equipment_slot,
-    name: item.item_name,
-    starforce: Number(item.starforce) || 0,
-    potential: item.potential_option_grade,
-    additional: item.additional_potential_option_grade,
-  }));
+  return items
+    .map((item) => ({
+      slot: item.item_equipment_slot,
+      name: item.item_name,
+      starforce: Number(item.starforce) || 0,
+      potential: item.potential_option_grade,
+      additional: item.additional_potential_option_grade,
+    }))
+    .sort((a, b) => slotRank(a.slot) - slotRank(b.slot));
 }
 
 const HUNTING_OPTION = /아이템 드롭률|메소 획득량/;

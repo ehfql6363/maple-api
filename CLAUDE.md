@@ -31,6 +31,11 @@
 - `starforce`는 문자열 숫자, 잠재 등급은 `레어/에픽/유니크/레전드리`, 전투력은 `character/stat`의 `final_stat` 중 `stat_name === "전투력"`.
 - 스타포스 이력 플래그 문구: `슈페리얼 장비 미해당`, `찬스타임 미적용`, `파괴 방지 미적용`, `파괴 방지 이벤트맵 미적용`. 결과는 `성공` / `실패(유지)`. "미적용·미사용·미해당"이 꺼짐이다(`isOn`).
 - 큐브 이력 `item_upgrade_result`는 `성공`(등급 상승) / `실패`.
+- 2026-10 실제 이력 30일치(스타포스 183회, 큐브 327회)에서 확인:
+  - 스타포스 `starcatch_result`는 전부 `null`이었다. 스타캐치를 안 한 건지 필드가 비는 건지 아직 모른다. 지금은 `null`을 스타캐치 안 함으로 본다.
+  - 스타포스에 `protect_shield`(`프로텍트 실드 미적용/소멸되지 않음`), `bonus_stat_upgrade`(`보너스 스탯 미적용 아이템`) 필드도 온다. 분석에는 안 쓴다.
+  - 큐브 `miracle_time_flag`는 `이벤트 적용되지 않음`이다. `isOn`은 이 문구를 켜짐으로 판단하므로 큐브에 그대로 쓰면 안 된다.
+- 프리셋 장비(`item_equipment_preset_N`)는 현재 장비와 다른 부위를 앞에 두는 순서로 온다. `toSlots`가 고정 부위 순서로 정렬한다.
 - **프리셋**: 일일 스냅샷 시점에 사냥 프리셋(드롭률·메소 잠재)을 낀 경우가 많다. 랭커 10명×7일 표본에서 보스 프리셋 착용은 23/70일이었다.
   - 그래서 장비는 사냥 잠재 줄이 가장 적고 스타포스 합이 높은 프리셋 기준으로 본다.
   - 전투력은 현재 착용 프리셋 기준으로만 나오므로, 보스 프리셋을 끼고 있던 날만 기록한다(`combat_power` NULL 허용).
@@ -45,14 +50,15 @@
 ## 개발 환경
 
 - 키는 `NEXON_API_KEY`(환경 변수 또는 git에서 제외된 `.env.local`), DB는 `DATABASE_URL`. 키를 커밋하거나 채팅·로그에 출력하지 않는다.
-- 이전 클라우드 세션 기준: `open.api.nexon.com`이 curl로는 열렸지만 Node(`fetch`)는 "Host not in allowlist"로 막혀서 앱 화면을 실제 데이터로 확인하지 못했다. 막히면 curl로 받은 응답 JSON을 로직에 넣어 검증한다.
+- 2026-10 세션부터 Node(`fetch`)에서도 `open.api.nexon.com`이 열린다(이전 세션은 "Host not in allowlist"로 막혔다). 다시 막히면 curl로 받은 응답 JSON을 로직에 넣어 검증한다.
+- 실제 데이터 확인: `npm run build && npx next start -p 3123` 후 `curl localhost:3123/character/<이름>`, `/api/luck`에 POST.
 - 검증 순서: `npm run lint && npm run typecheck && npm test && npm run build`
 
 ## 남은 일
 
-1. Node에서 API가 열리면 `/character/[name]`, `/luck`을 실제 데이터로 확인
+1. ~~`/character/[name]`, `/luck` 실제 데이터 확인~~ (2026-10 완료. 보스 프리셋 판정·사냥 프리셋 안내·없는 캐릭터·잘못된 키 처리 확인, 부위 순서 수정)
 2. Postgres 연결(Neon/Supabase), `npm run db:migrate`, GitHub Secrets(`NEXON_API_KEY`, `DATABASE_URL`) 등록 후 수집 시작. 데이터가 몇 주 쌓여야 추천 품질이 나온다.
-3. 스타포스 확률표(`src/lib/luck/starforce.ts`, 개편 기준일 `STARFORCE_TABLE_SINCE`)를 공식 확률 공개 페이지와 대조. 15성 이상과 스타캐치 문구는 실제 기록으로 아직 검증하지 못했다.
+3. 스타포스 확률표(`src/lib/luck/starforce.ts`, 개편 기준일 `STARFORCE_TABLE_SINCE`)를 공식 확률 공개 페이지와 대조. 15성 이상과 스타캐치 문구는 실제 기록으로 아직 검증하지 못했다(본인 키 이력은 14성까지, 스타캐치 `null`뿐).
 4. 큐브 등급 상승 공식 확률표를 넣어 운 백분위 계산
 5. 개발 키 호출 한도 확인 후 수집 규모(`RANKING_PAGES`, `MAX_CHARACTERS`) 조정. 캐릭터당 하루 3회 호출한다.
 6. 보스 프리셋을 거의 안 끼는 캐릭터는 전투력이 오래 갱신되지 않는다. 데이터가 쌓이면 장비 점수 기반 구간 분할을 검토한다.
