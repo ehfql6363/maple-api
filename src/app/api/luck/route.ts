@@ -36,8 +36,8 @@ export async function POST(request: Request) {
     });
   } catch (e) {
     if (e instanceof NexonApiError) {
-      const status = e.status === 401 || e.status === 403 ? 401 : 502;
-      return Response.json({ error: status === 401 ? "API 키가 올바르지 않습니다." : e.message }, { status });
+      if (e.invalidKey) return Response.json({ error: "API 키가 올바르지 않습니다." }, { status: 401 });
+      return Response.json({ error: e.message }, { status: 502 });
     }
     throw e;
   }

@@ -35,7 +35,7 @@ async function CharacterView({ params }: { params: PageProps<"/character/[name]"
     ]);
     data = { basic, cp: combatPower(stat), slots: summarizeEquipment(equipment) };
   } catch (e) {
-    const msg = e instanceof NexonApiError && e.status === 400 ? "캐릭터를 찾을 수 없습니다." : (e as Error).message;
+    const msg = e instanceof NexonApiError && e.invalidParameter ? "캐릭터를 찾을 수 없습니다." : (e as Error).message;
     return <p className="notice">{msg}</p>;
   }
 

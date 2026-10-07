@@ -18,6 +18,16 @@ export class NexonApiError extends Error {
     super(message);
     this.name = "NexonApiError";
   }
+
+  /** 잘못된 API 키 (HTTP 400, OPENAPI00005) */
+  get invalidKey() {
+    return this.code === "OPENAPI00005";
+  }
+
+  /** 잘못된 파라미터. 없는 캐릭터 이름도 여기에 해당한다 (HTTP 400, OPENAPI00004) */
+  get invalidParameter() {
+    return this.code === "OPENAPI00004";
+  }
 }
 
 type Query = Record<string, string | number | undefined>;
@@ -73,6 +83,8 @@ export class NexonClient {
   }
 
   private async throttle() {
+    // 간격 제한이 없으면 시간을 읽지 않는다. 서버 컴포넌트 렌더링 중 Date.now()는 프리렌더 오류를 낸다.
+    if (this.minIntervalMs <= 0) return;
     const wait = this.lastCallAt + this.minIntervalMs - Date.now();
     if (wait > 0) await sleep(wait);
     this.lastCallAt = Date.now();

@@ -47,9 +47,12 @@ export const STARFORCE_RATES: { success: number; destroy: number }[] = [
 /** 스타캐치 성공 시 성공 확률에 곱해지는 배수 */
 const STARCATCH_MULTIPLIER = 1.05;
 
-/** "파괴 방지 적용" / "파괴 방지 미적용", "미사용" 같은 플래그 문자열을 해석한다. */
-function isOn(flag: string | null | undefined): boolean {
-  return !!flag && !/미적용|미사용|false/.test(flag);
+/**
+ * "파괴 방지 적용" / "파괴 방지 미적용", "슈페리얼 장비 미해당" 같은 플래그 문자열을 해석한다.
+ * 실제 응답 예: "찬스타임 미적용", "파괴 방지 이벤트맵 미적용"
+ */
+export function isOn(flag: string | null | undefined): boolean {
+  return !!flag && !/미(적용|사용|해당)|false/.test(flag);
 }
 
 export interface AttemptProbability {
@@ -59,11 +62,13 @@ export interface AttemptProbability {
 
 /**
  * 한 번의 강화 시도에 적용된 확률. 분석 대상이 아니면 null.
- * 제외 대상: 슈페리얼 장비(별도 확률표), 찬스타임(100%), 성공 확률 이벤트, 개편 이전 기록.
+ * 제외 대상: 슈페리얼 장비(별도 확률표), 찬스타임(100%), 파괴 방지 이벤트맵, 성공 확률 이벤트, 개편 이전 기록.
  */
 export function attemptProbability(h: StarforceHistory): AttemptProbability | null {
   if (h.date_create.slice(0, 10) < STARFORCE_TABLE_SINCE) return null;
   if (isOn(h.superior_item_flag) || isOn(h.chance_time)) return null;
+  // 파괴 방지 이벤트맵은 파괴 확률이 달라지므로 제외한다.
+  if (isOn(h.event_field_flag)) return null;
 
   const events = h.starforce_event_list ?? [];
   if (events.some((e) => Number(e.success_rate) > 0)) return null;

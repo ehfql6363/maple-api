@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeStarforce, attemptProbability, STARFORCE_RATES } from "@/lib/luck/starforce";
+import { analyzeStarforce, attemptProbability, isOn, STARFORCE_RATES } from "@/lib/luck/starforce";
 import { normalCdf } from "@/lib/luck/stats";
 import type { StarforceHistory } from "@/lib/nexon/types";
 
@@ -9,15 +9,25 @@ const h = (star: number, result: string, extra: Partial<StarforceHistory> = {}):
   before_starforce_count: star,
   after_starforce_count: result === "성공" ? star + 1 : star,
   starcatch_result: "실패",
-  superior_item_flag: "미사용",
+  superior_item_flag: "슈페리얼 장비 미해당",
   destroy_defence: "파괴 방지 미적용",
   chance_time: "찬스타임 미적용",
-  event_field_flag: "미적용",
+  event_field_flag: "파괴 방지 이벤트맵 미적용",
   target_item: "아케인셰이드 나이트글러브",
   character_name: "테스트",
   date_create: "2026-09-01T12:00:00+09:00",
   starforce_event_list: null,
   ...extra,
+});
+
+describe("isOn", () => {
+  it("실제 응답 문구를 해석한다", () => {
+    for (const off of ["슈페리얼 장비 미해당", "찬스타임 미적용", "파괴 방지 미적용", "파괴 방지 이벤트맵 미적용"]) {
+      expect(isOn(off)).toBe(false);
+    }
+    expect(isOn("파괴 방지 적용")).toBe(true);
+    expect(isOn(null)).toBe(false);
+  });
 });
 
 describe("normalCdf", () => {
@@ -43,7 +53,8 @@ describe("attemptProbability", () => {
     expect(attemptProbability(h(15, "실패(유지)", { destroy_defence: "파괴 방지 적용" }))!.destroy).toBe(0);
   });
 
-  it("찬스타임, 슈페리얼, 성공률 이벤트, 개편 이전 기록은 제외", () => {
+  it("찬스타임, 슈페리얼, 이벤트맵, 성공률 이벤트, 개편 이전 기록은 제외", () => {
+    expect(attemptProbability(h(15, "성공", { event_field_flag: "파괴 방지 이벤트맵 적용" }))).toBeNull();
     expect(attemptProbability(h(15, "성공", { chance_time: "찬스타임 적용" }))).toBeNull();
     expect(attemptProbability(h(15, "성공", { superior_item_flag: "슈페리얼 장비" }))).toBeNull();
     expect(

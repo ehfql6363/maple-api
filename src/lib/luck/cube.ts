@@ -18,7 +18,8 @@ export function summarizeCubes(history: CubeHistory[]): CubeSummary[] {
     let s = map.get(h.cube_type);
     if (!s) map.set(h.cube_type, (s = { cubeType: h.cube_type, uses: 0, tierUps: 0, guaranteed: 0 }));
     s.uses++;
-    if (h.item_upgrade_result.includes("상승")) {
+    // 실제 응답: 등급이 오르면 "성공", 아니면 "실패"
+    if (h.item_upgrade_result === "성공") {
       s.tierUps++;
       if (h.upgrade_guarantee) s.guaranteed++;
     }
